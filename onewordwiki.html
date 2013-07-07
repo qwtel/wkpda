@@ -1,0 +1,41 @@
+<head>
+  <title>The world according to Google search queries</title>
+</head>
+
+<body>
+  {{> body}}
+</body>
+
+<template name="body">
+  <h1>The world according to Google search queries</h1>
+  {{> form}}
+  {{> properties}}
+</template>
+
+<template name="form">
+  <form class="form-inline">
+    <input id="thing" type="text" value="{{thing}}" />
+    <select id="verb">
+      <option "{{verb "is"}}">is</option>
+      <option "{{verb "are"}}">are</option>
+    </select>
+    <button class="btn" type="button">What?</button>
+  </form>
+</template>
+
+<template name="properties">
+  <ul>
+  {{#each properties}}
+    <li>{{> property}}</li>
+  {{/each}}
+  </ul>
+</template>
+
+<template name="property">
+<h3 class="property">
+  <a href="https://www.google.at/search?q={{q}}" target="_blank">{{text}}</a>
+  {{#if gt0}}
+    <a title="Find other things that are {{text}}">({{thingsCount}})</a>
+  {{/if}}
+</h3>
+</template>
