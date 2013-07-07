@@ -4,14 +4,48 @@ root.Things = new Meteor.Collection "things"
 root.Properties = new Meteor.Collection "properties"
 root.Connections = new Meteor.Collection "connections"
 
+class Router extends Backbone.Router
+  routes:
+    "": "home"
+    "thing/:id": "thing"
+    "property/:id": "property"
+
+  home: ->
+    Session.set "page", null
+    Session.set "thingId", null
+    Session.set "propertyId", null
+
+  thing: (id) ->
+    Session.set "page", "thing"
+    Session.set "thingId", id
+
+  property: (id) ->
+    Session.set "page", "property"
+    Session.set "propertyId", id
+
+Router = new Router
+
 if Meteor.isServer
   Meteor.startup ->
-    Meteor.publish "query", (thing, verb) ->
-      thingsQ = Things.find
-        text: thing
-        verb: verb
+    Meteor.publish "popular", ->
+      Things.find {},
+        sort: searchedFor: -1
+        limit: 10
 
-      thingObject = thingsQ.fetch()[0]
+    Meteor.publish "property", (propertyId) ->
+      propertyQ = Properties.find propertyId
+
+      connectionsQ = Connections.find propertyId: propertyId
+      connections = connectionsQ.fetch()
+
+      thingIds = _.pluck connections, "thingId"
+      thingsQ = Things.find _id: $in: thingIds
+
+      [propertyQ, thingsQ, connectionsQ]
+
+    Meteor.publish "thing", (thingId) ->
+      thingQ = Things.find thingId
+      thingObject = thingQ.fetch()[0]
       
       if thingObject
         thingId = thingObject._id
@@ -24,37 +58,65 @@ if Meteor.isServer
         propertiesQ = Properties.find _id: $in: propIds
         properties = propertiesQ.fetch()
 
-        console.log _.pluck properties, "text"
+        #console.log _.pluck properties, "text"
 
-        return [thingsQ, connectionsQ, propertiesQ]
-
-      @ready()
+        [thingQ, connectionsQ, propertiesQ]
 
 if Meteor.isClient
+  Handlebars.registerHelper "equals", (name, value) ->
+    Session.equals name, value
+
   Meteor.startup ->
+    Backbone.history.start pushState: true
+
+    Meteor.subscribe "popular"
+
     Deps.autorun ->
-      thing = Session.get "thing"
-      verb = Session.get "verb"
+      page = Session.get "page"
+      if page is "property"
+        propertyId = Session.get "propertyId"
+        if propertyId
+          Meteor.subscribe "property", propertyId
 
-      Meteor.subscribe "query", thing, verb, ->
-        thingObject = Things.findOne
-          text: thing
-          verb: verb
-        
-        console.log thingObject
+      else if page is "thing"
+        thingId = Session.get "thingId"
+        if thingId
+          Meteor.subscribe "thing", thingId, ->
+            # this would be too much refactoring, just hack
+            thingObject = Things.findOne thingId
+            Session.set "thing", thingObject.text
+            Session.set "verb", thingObject.verb
 
-        if not thingObject 
-          q = thing + " " + verb + " "
+        #thing = Session.get "thing"
+        #verb = Session.get "verb"
 
-          url =  "http://suggestqueries.google.com/complete/search?client=firefox&q="+q
-          $.ajax 
-            dataType: "jsonp"
-            url: url
-            success: (data, status) ->
-              Meteor.call "update", thing, verb, data, ->
-                console.log "updated"
-                Meteor.subscribe "query", thing, verb, ->
-                  console.log "done"
+        #Meteor.subscribe "query", thing, verb, ->
+        #  thingObject = Things.findOne
+        #    text: thing
+        #    verb: verb
+        #  
+        #  console.log thingObject
+
+        #  if not thingObject 
+        #    q = thing + " " + verb + " "
+
+        #    url =  "http://suggestqueries.google.com/complete/search?client=firefox&q="+q
+        #    $.ajax 
+        #      dataType: "jsonp"
+        #      url: url
+        #      success: (data, status) ->
+        #        Meteor.call "update", thing, verb, data, ->
+        #          console.log "updated"
+        #          Meteor.subscribe "query", thing, verb, ->
+        #            console.log "done"
+
+        #  Router.navigate "/thing/"+thingObject._id, false
+
+
+  Template.popular.things = ->
+    Things.find {},
+      sort: searchedFor: -1
+      limit: 10
 
   Template.form.thing = ->
     Session.get("thing") or ''
@@ -64,10 +126,47 @@ if Meteor.isClient
 
   Template.form.events
     'click button': (e) ->
-      thing = $('#thing').val()
-      verb = $('#verb').val()
-      Session.set "thing", thing
-      Session.set "verb", verb
+      thing = $('#thing').val().toLowerCase()
+      verb = $('#verb').val().toLowerCase()
+
+      Meteor.call "getThingId", thing, verb, (err, res) ->
+        if not err
+          if not res is false
+            Router.navigate "/thing/"+res, true
+
+          else
+            q = thing + " " + verb + " "
+
+            url =  "http://suggestqueries.google.com/complete/search?client=firefox&q="+q
+            $.ajax 
+              dataType: "jsonp"
+              url: url
+              success: (data, status) ->
+                Meteor.call "update", thing, verb, data, (err, res) ->
+                  if not err
+                    Router.navigate "/thing/"+res, true
+
+                  #Meteor.subscribe "query", thing, verb, ->
+                  #  console.log "done"
+
+          #Session.set "thing", thing
+          #Session.set "verb", verb
+
+  Template.things.property = -> 
+    id = Session.get "propertyId"
+    Properties.findOne(id)?.text
+
+  Template.things.things = -> 
+    id = Session.get "propertyId"
+    connections = Connections.find propertyId: id
+    connections = connections.fetch()
+    console.log id, connections
+    thingIds = _.pluck connections, "thingId"
+    Things.find _id: $in: thingIds
+
+  Template.properties.thing = -> Session.get "thing"
+
+  Template.properties.verb = -> Session.get "verb"
 
   Template.properties.properties = ->
     thing = Session.get "thing"
@@ -80,7 +179,6 @@ if Meteor.isClient
     if thingObject
       connections = Connections.find thingId: thingObject._id
       connections = connections.fetch()
-
       propertyIds = _.pluck connections, "propertyId"
       Properties.find _id: $in: propertyIds
 
@@ -89,22 +187,35 @@ if Meteor.isClient
     verb = Session.get "verb"
     thing + " " + verb + " " + @text
 
+  Template.property.events
+    "click .other-things": (e) ->
+      Session.set "propertyId", @_id
+      Session.set "page", "property"
+
   Template.property.gt0 = ->
     @thingsCount > 1
 
-  Template.property.thingsCount = ->
-    @thingsCount - 1
+  Template.property.rendered = ->
+    $(@find('a[title]')).tooltip
+      placement: 'right'
 
-  #Template.body.events
-  #  'click a[href^="/"]': (e) ->
-  #    if e.which is 1 and not (e.ctrlKey or e.metaKey)
-  #      e.preventDefault()
-  #      $t = $(e.target).closest 'a[href^="/"]'
-  #      href = $t.attr "href"
-  #      if href then Router.navigate href, true
+  Template.body.events
+    'click a[href^="/"]': (e) ->
+      if e.which is 1 and not (e.ctrlKey or e.metaKey)
+        e.preventDefault()
+        $t = $(e.target).closest 'a[href^="/"]'
+        href = $t.attr "href"
+        if href then Router.navigate href, true
 
 if Meteor.isServer
   Meteor.methods
+    getThingId: (thing, verb) ->
+      thingObject = Things.findOne
+        text: thing
+        verb: verb
+      
+      if thingObject then thingObject._id else false
+
     update: (thing, verb, data) ->
       console.log data[0], data[1]
 
@@ -115,14 +226,14 @@ if Meteor.isServer
         date: date
         searchedFor: 1
 
-      replace = (p, thing) ->
-        re = new RegExp thing+"\\s" 
-        p = p.replace re, ''
-
       properties = data[1]
       for p in properties
-        p = replace p, thing
-        p = replace p, verb
+        re = new RegExp thing+"\\s" 
+        p = " " + p.replace re, ''
+
+        re = new RegExp "\\s"+verb+"\\s" 
+        p = p.replace re, ''
+
         console.log p
 
         propertyObject = Properties.findOne text: p
@@ -147,3 +258,5 @@ if Meteor.isServer
           upVotes: 0
           downVotes: 0
           voters: []
+
+      return thingId

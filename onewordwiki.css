@@ -1,1 +1,8 @@
 /* CSS declarations go here */
+body {
+  padding: 25px;
+}
+
+a[title] {
+  cursor: pointer;
+}

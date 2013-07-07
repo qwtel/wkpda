@@ -1,5 +1,5 @@
 <head>
-  <title>The world according to Google search queries</title>
+  <title>The World According to Google Search Queries</title>
 </head>
 
 <body>
@@ -7,23 +7,44 @@
 </body>
 
 <template name="body">
-  <h1>The world according to Google search queries</h1>
+  <center>
+  <h1><a href="/">The World According to Google Search Queries</a></h1>
   {{> form}}
-  {{> properties}}
+  </center>
+
+  {{#if equals "page" "thing"}}
+    {{> properties}}
+  {{else}}
+    {{#if equals "page" "property"}}
+      {{> things}}
+    {{else}}
+      {{> popular}}
+    {{/if}}
+  {{/if}}
+</template>
+
+<template name="popular">
+  <h2>Popular</h2>
+  <ul>
+  {{#each things}}
+    <li>{{> thing}}</li>
+  {{/each}}
+  </ul>
 </template>
 
 <template name="form">
-  <form class="form-inline">
-    <input id="thing" type="text" value="{{thing}}" />
-    <select id="verb">
+  <div class="form-inline">
+    <input id="thing" class="input-xlarge" type="text" value="{{thing}}" placeholder="Something"/>
+    <select id="verb" class="input-small">
       <option "{{verb "is"}}">is</option>
       <option "{{verb "are"}}">are</option>
     </select>
     <button class="btn" type="button">What?</button>
-  </form>
+  </div>
 </template>
 
 <template name="properties">
+  <h2>{{thing}} {{verb}}...</h2>
   <ul>
   {{#each properties}}
     <li>{{> property}}</li>
@@ -31,11 +52,27 @@
   </ul>
 </template>
 
+<template name="things">
+  <h2>Things that are "{{property}}"...</h2>
+  <ul>
+  {{#each things}}
+    <li>{{> thing}}</li>
+  {{/each}}
+  </ul>
+</template>
+
+<template name="thing">
+  <h3 class="things">
+    <a href="/thing/{{_id}}">{{text}}</a>
+  </h3>
+</template>
+
 <template name="property">
 <h3 class="property">
-  <a href="https://www.google.at/search?q={{q}}" target="_blank">{{text}}</a>
+  <a href="/property/{{_id}}">{{text}}</a>
   {{#if gt0}}
-    <a title="Find other things that are {{text}}">({{thingsCount}})</a>
+    <span data-toggle="tooltip" title='Other things that are "{{text}}"'>({{thingsCount}})</span>
   {{/if}}
+  <!--<a href="https://www.google.at/search?q={{q}}" target="_blank">Search</a>-->
 </h3>
 </template>
