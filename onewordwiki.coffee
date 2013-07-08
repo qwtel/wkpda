@@ -226,16 +226,27 @@ if Meteor.isServer
         date: date
         searchedFor: 1
 
+      fail = 0
       properties = data[1]
+      ps = []
       for p in properties
-        re = new RegExp thing+"\\s" 
-        p = " " + p.replace re, ''
+        re = new RegExp "^"+thing+"\\s" 
 
-        re = new RegExp "\\s"+verb+"\\s" 
-        p = p.replace re, ''
+        if not re.test p
+          fail++
+          if fail > 5
+            throw new Meteor.Error p
 
-        console.log p
+        p = p.replace re, ' '
 
+        re = new RegExp "^"+"\\s"+verb+"\\s" 
+        p = p.replace re, ' '
+
+        p = p.replace /\s{2,}/g, ' '
+
+        ps.push p
+
+      for p in ps
         propertyObject = Properties.findOne text: p
         if propertyObject
           propertyId = propertyObject._id
