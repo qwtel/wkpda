@@ -69,6 +69,10 @@ if Meteor.isClient
   Meteor.startup ->
     Backbone.history.start pushState: true
 
+    # make Meteor.userId() work for this browser session
+    if not Meteor.userId()?
+      Meteor.loginAnonymously()
+
     Meteor.subscribe "popular"
 
     Deps.autorun ->

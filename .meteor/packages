@@ -9,3 +9,4 @@ bootstrap
 backbone
 coffeescript
 http
+accounts-base
