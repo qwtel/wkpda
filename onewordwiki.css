@@ -1,8 +1,44 @@
 /* CSS declarations go here */
 body {
-  padding: 25px;
+  padding: 15px;
 }
 
 a[title] {
   cursor: pointer;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+}
+
+h1, .form-inline { 
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+}
+
+.media {
+  margin: 10px;
+  //width: 28%;
+  //margin: 20px 1.5%;
+  //float: left;
+  //border: 1px solid #ddd;
+  //padding: 10px 1%;
+}
+
+.media.property .media-img, .bubble {
+  border-radius: 100%;
+}
+
+.media-img {
+  width: 85px;
+  height: 85px;
+  background-position: center center;
+  background-size: cover;
+  border: 1px solid #ddd;
+}
+
+.media-heading {
+  margin-top: -5px;
 }

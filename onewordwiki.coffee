@@ -87,32 +87,6 @@ if Meteor.isClient
             Session.set "thing", thingObject.text
             Session.set "verb", thingObject.verb
 
-        #thing = Session.get "thing"
-        #verb = Session.get "verb"
-
-        #Meteor.subscribe "query", thing, verb, ->
-        #  thingObject = Things.findOne
-        #    text: thing
-        #    verb: verb
-        #  
-        #  console.log thingObject
-
-        #  if not thingObject 
-        #    q = thing + " " + verb + " "
-
-        #    url =  "http://suggestqueries.google.com/complete/search?client=firefox&q="+q
-        #    $.ajax 
-        #      dataType: "jsonp"
-        #      url: url
-        #      success: (data, status) ->
-        #        Meteor.call "update", thing, verb, data, ->
-        #          console.log "updated"
-        #          Meteor.subscribe "query", thing, verb, ->
-        #            console.log "done"
-
-        #  Router.navigate "/thing/"+thingObject._id, false
-
-
   Template.popular.things = ->
     Things.find {},
       sort: searchedFor: -1
@@ -137,7 +111,18 @@ if Meteor.isClient
           else
             q = thing + " " + verb + " "
 
-            url =  "http://suggestqueries.google.com/complete/search?client=firefox&q="+q
+
+            #searchProviders = [
+            #  "http://suggestqueries.google.com/complete/search?client=firefox&q=",
+            #  "http://ff.search.yahoo.com/gossip?output=fxjson&command=",
+            #  "http://api.bing.com/osjson.aspx?query="
+            #]
+
+            #choice = Random.choice searchProviders
+            #url = choice + q
+
+            url = "http://suggestqueries.google.com/complete/search?client=firefox&q=" + q
+
             $.ajax 
               dataType: "jsonp"
               url: url
@@ -145,12 +130,9 @@ if Meteor.isClient
                 Meteor.call "update", thing, verb, data, (err, res) ->
                   if not err
                     Router.navigate "/thing/"+res, true
+                    Meteor.flush()
 
-                  #Meteor.subscribe "query", thing, verb, ->
-                  #  console.log "done"
-
-          #Session.set "thing", thing
-          #Session.set "verb", verb
+                    Meteor.call "assignImages", res
 
   Template.things.property = -> 
     id = Session.get "propertyId"
@@ -165,6 +147,14 @@ if Meteor.isClient
     Things.find _id: $in: thingIds
 
   Template.properties.thing = -> Session.get "thing"
+
+  Template.properties.thingObject = -> 
+    thing = Session.get "thing"
+    Things.findOne text: thing
+
+  Template.things.propertyObject = -> 
+    id = Session.get "propertyId"
+    Properties.findOne id
 
   Template.properties.verb = -> Session.get "verb"
 
@@ -186,6 +176,12 @@ if Meteor.isClient
     thing = Session.get "thing"
     verb = Session.get "verb"
     thing + " " + verb + " " + @text
+
+  Template.property.image = ->
+    @images?[1]
+
+  Template.thing.image = ->
+    @images?[1]
 
   Template.property.events
     "click .other-things": (e) ->
@@ -209,6 +205,11 @@ if Meteor.isClient
 
 if Meteor.isServer
   Meteor.methods
+    reset: ->
+      Things.remove({})
+      Connections.remove({})
+      Properties.remove({})
+
     getThingId: (thing, verb) ->
       thingObject = Things.findOne
         text: thing
@@ -237,12 +238,16 @@ if Meteor.isServer
           if fail > 5
             throw new Meteor.Error p
 
+        # remove the thing from the string, but only when it is at the beginning
         p = p.replace re, ' '
 
+        # remove the verb from the string, but only when it is at the beginning
         re = new RegExp "^"+"\\s"+verb+"\\s" 
         p = p.replace re, ' '
 
+        # dealing with white space
         p = p.replace /\s{2,}/g, ' '
+        p = p.replace /^\s+|\s+$/g, ''
 
         ps.push p
 
@@ -255,7 +260,6 @@ if Meteor.isServer
             $inc: 
               thingsCount: 1
 
-          console.log "WHAT THE FUCK??"
         else
           propertyId = Properties.insert 
             text: p
@@ -271,3 +275,64 @@ if Meteor.isServer
           voters: []
 
       return thingId
+
+    assignImages: (thingId) ->
+      thingObject = Things.findOne(thingId)
+      if thingObject and not thingObject.images
+        thing = thingObject.text
+        assignImage thing, Things, thingId
+
+        connectionsQ = Connections.find thingId: thingId
+        connections = connectionsQ.fetch()
+        propertyIds = _.pluck connections, "propertyId"
+
+        for propertyId in propertyIds
+          propertyObject = Properties.findOne(propertyId)
+          if propertyObject and not propertyObject.images and propertyObject.thingsCount > 1
+            property = propertyObject.text
+            assignImage property, Properties, propertyId
+
+assignImage = (q, collection, entityId) ->
+
+  # uhm, well, you are not supposed to see this..
+  accKey = '7QEr713Vy7abf/09YiXeUDRvGkYbtOrWMWK5qIulguM'
+
+  #rootUri = 'https://api.datamarket.azure.com/Bing/Search/v1/Composite'
+  rootUri = 'https://api.datamarket.azure.com/Bing/Search/Image'
+
+  # Get the query. Default to 'sushi'.
+  query = if q then "'#{q}'" else "'sushi'"
+
+  # Get the service operation.
+  serviceOp = "'image'"
+
+  # Get the market. Default to en-us.
+  market = "'en-us'"
+
+  # Encode the credentials and create the stream context.
+  auth = new Buffer(accKey+":"+accKey).toString 'base64'
+
+  res = Meteor.http.get rootUri,
+    headers:
+      'Authorization': "Basic #{auth}"
+    params:
+      'Query': query
+      'Market': market
+      '$top': 5
+      '$format': 'json'
+      #'Sources': serviceOp
+
+  if res? and res.data? and res.data.d? and res.data.d.results?
+    thumbnails = []
+    for image in res.data.d.results
+      if image['Thumbnail']
+        thumbnails.push image['Thumbnail']
+
+    mediaUrls = _.pluck thumbnails, "MediaUrl"
+
+    if collection? and entityId?
+      collection.update entityId,
+        $set:
+          images: mediaUrls
+
+  return res

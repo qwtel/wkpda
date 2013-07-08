@@ -1,5 +1,5 @@
 <head>
-  <title>The World According to Google Search Queries</title>
+  <title>The World According to Popular Search Queries</title>
 </head>
 
 <body>
@@ -8,7 +8,7 @@
 
 <template name="body">
   <center>
-  <h1><a href="/">The World According to Google Search Queries</a></h1>
+  <h1><a href="/">The World According to Popular Search Queries</a></h1>
   {{> form}}
   </center>
 
@@ -24,7 +24,7 @@
 </template>
 
 <template name="popular">
-  <h2>Popular</h2>
+  <h2>Why not try...</h2>
   <ul>
   {{#each things}}
     <li>{{> thing}}</li>
@@ -44,7 +44,16 @@
 </template>
 
 <template name="properties">
-  <h2>{{thing}} {{verb}}...</h2>
+  {{#with thingObject}}
+  {{#each images}}
+      <div class="media-img media-object" style="float:left; margin-right: 10px; background-image: url('{{.}}')"></div>
+  {{/each}}
+  {{/with}}
+  <div class="clearfix"/>
+
+  <h1>&raquo;{{thing}}&laquo; {{verb}}...</h1>
+  <br/>
+
   <ul>
   {{#each properties}}
     <li>{{> property}}</li>
@@ -53,7 +62,16 @@
 </template>
 
 <template name="things">
-  <h2>Things that are "{{property}}"...</h2>
+  {{#with propertyObject}}
+  {{#each images}}
+      <div class="media-img bubble media-object" style="float:left; margin-right: 10px; background-image: url('{{.}}')"></div>
+  {{/each}}
+  {{/with}}
+  <div class="clearfix"/>
+
+  <h1>Things that are "{{property}}"...</h1>
+  <br/>
+
   <ul>
   {{#each things}}
     <li>{{> thing}}</li>
@@ -62,17 +80,32 @@
 </template>
 
 <template name="thing">
-  <h3 class="things">
-    <a href="/thing/{{_id}}">{{text}}</a>
-  </h3>
+  <div class="thing media">
+    <a href="/thing/{{_id}}" class="pull-left">
+      <div class="media-img media-object" style="background-image: url('{{image}}')"></div>
+    </a>
+    <div class="media-body">
+      <h2 class="media-heading">
+        <a href="/thing/{{_id}}">{{text}}</a>
+      </h2>
+      <p>...</p>
+    </div>
+  </div>
 </template>
 
 <template name="property">
-<h3 class="property">
-  <a href="/property/{{_id}}">{{text}}</a>
-  {{#if gt0}}
-    <span data-toggle="tooltip" title='Other things that are "{{text}}"'>({{thingsCount}})</span>
-  {{/if}}
+  <div class="property media">
+    <a href="/property/{{_id}}" class="pull-left">
+      <div class="media-img media-object" style="background-image: url('{{image}}')"></div>
+    </a>
+    <div class="media-body">
+      <h2 class="media-heading">
+        <a href="/property/{{_id}}">{{text}}</a>
+      </h2>
+      {{#if gt0}}
+        <p>{{thingsCount}}</p>
+      {{/if}}
+    </div>
+  </div>
   <!--<a href="https://www.google.at/search?q={{q}}" target="_blank">Search</a>-->
-</h3>
 </template>
