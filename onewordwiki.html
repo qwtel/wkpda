@@ -1,5 +1,5 @@
 <head>
-  <title>The World According to Popular Search Queries</title>
+  <title>The World According to Search Engines</title>
 </head>
 
 <body>
@@ -8,7 +8,7 @@
 
 <template name="body">
   <center>
-  <h1><a href="/">The World According to Popular Search Queries</a></h1>
+  <h1><a href="/">The World According to Search Engines</a></h1>
   {{> form}}
   </center>
 
@@ -25,6 +25,7 @@
 
 <template name="popular">
   <h2>Why not try...</h2>
+  <br/>
   <ul>
   {{#each things}}
     <li>{{> thing}}</li>
@@ -88,7 +89,7 @@
       <h2 class="media-heading">
         <a href="/thing/{{_id}}">{{text}}</a>
       </h2>
-      <p>...</p>
+      <p>{{searchedFor}}</p>
     </div>
   </div>
 </template>

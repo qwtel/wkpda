@@ -142,7 +142,7 @@ if Meteor.isClient
     id = Session.get "propertyId"
     connections = Connections.find propertyId: id
     connections = connections.fetch()
-    console.log id, connections
+    #console.log id, connections
     thingIds = _.pluck connections, "thingId"
     Things.find _id: $in: thingIds
 
@@ -170,7 +170,8 @@ if Meteor.isClient
       connections = Connections.find thingId: thingObject._id
       connections = connections.fetch()
       propertyIds = _.pluck connections, "propertyId"
-      Properties.find _id: $in: propertyIds
+      Properties.find _id: $in: propertyIds,
+        sort: thingsCount: -1
 
   Template.property.q = ->
     thing = Session.get "thing"
@@ -178,10 +179,10 @@ if Meteor.isClient
     thing + " " + verb + " " + @text
 
   Template.property.image = ->
-    @images?[1]
+    @images?[1] or '/img/bg_new.png'
 
   Template.thing.image = ->
-    @images?[1]
+    @images?[1] or '/img/bg_new.png'
 
   Template.property.events
     "click .other-things": (e) ->
@@ -218,25 +219,16 @@ if Meteor.isServer
       if thingObject then thingObject._id else false
 
     update: (thing, verb, data) ->
-      console.log data[0], data[1]
-
-      date = new Date().getTime()
-      thingId = Things.insert 
-        text: thing
-        verb: verb
-        date: date
-        searchedFor: 1
-
-      fail = 0
+      #fail = 0
       properties = data[1]
       ps = []
       for p in properties
         re = new RegExp "^"+thing+"\\s" 
 
-        if not re.test p
-          fail++
-          if fail > 5
-            throw new Meteor.Error p
+        #if not re.test p
+        #  fail++
+        #  if fail > properties.length/2
+        #    throw new Meteor.Error p
 
         # remove the thing from the string, but only when it is at the beginning
         p = p.replace re, ' '
@@ -250,6 +242,13 @@ if Meteor.isServer
         p = p.replace /^\s+|\s+$/g, ''
 
         ps.push p
+
+      date = new Date().getTime()
+      thingId = Things.insert 
+        text: thing
+        verb: verb
+        date: date
+        searchedFor: 1
 
       for p in ps
         propertyObject = Properties.findOne text: p
