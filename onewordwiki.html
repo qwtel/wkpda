@@ -82,6 +82,9 @@
 
 <template name="thing">
   <div class="thing media">
+    <div class="pull-left">
+      {{> vote}}
+    </div>
     <a href="/thing/{{_id}}" class="pull-left">
       <div class="media-img media-object" style="background-image: url('{{image}}')"></div>
     </a>
@@ -94,8 +97,25 @@
   </div>
 </template>
 
+<template name="vote">
+  <div class="btn-group btn-group-vertical">
+    <div class="btn">
+      <i class="icon-arrow-up"/>
+    </div>
+    <div class="btn disabled">
+      0
+    </div>
+    <div class="btn">
+      <i class="icon-arrow-down"/>
+    </div>
+  </div>
+</template>
+
 <template name="property">
   <div class="property media">
+    <div class="pull-left">
+      {{> vote}}
+    </div>
     <a href="/property/{{_id}}" class="pull-left">
       <div class="media-img media-object" style="background-image: url('{{image}}')"></div>
     </a>
@@ -106,6 +126,7 @@
       {{#if gt0}}
         <p>{{thingsCount}}</p>
       {{/if}}
+
     </div>
   </div>
   <!--<a href="https://www.google.at/search?q={{q}}" target="_blank">Search</a>-->
