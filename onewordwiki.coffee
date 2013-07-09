@@ -3,6 +3,13 @@ root = exports ? this
 root.Things = new Meteor.Collection "things"
 root.Properties = new Meteor.Collection "properties"
 root.Connections = new Meteor.Collection "connections"
+root.Votes = new Meteor.Collection "votes"
+
+root.Collections =
+  'thing': Things
+  'property': Properties
+  'connection': Connections
+  'vote': Votes
 
 class Router extends Backbone.Router
   routes:
@@ -27,6 +34,22 @@ Router = new Router
 
 if Meteor.isServer
   Meteor.startup ->
+    migrate = (collection, name) ->
+      collection.update {},
+        $set:
+          type: name
+          #upVotes: 0
+          #downVotes: 0
+          #score: 0
+          #hot: 0
+          #best: 0
+      ,
+        multi: true
+
+    migrate Things, 'thing'
+    migrate Properties, 'property'
+    migrate Connections, 'connection'
+
     Meteor.publish "popular", ->
       Things.find {},
         sort: searchedFor: -1
@@ -66,6 +89,9 @@ if Meteor.isClient
   Handlebars.registerHelper "equals", (name, value) ->
     Session.equals name, value
 
+  Handlebars.registerHelper "percentage", ->
+    Math.round @best * 100
+
   Meteor.startup ->
     Backbone.history.start pushState: true
 
@@ -92,9 +118,16 @@ if Meteor.isClient
             Session.set "verb", thingObject.verb
 
   Template.popular.things = ->
-    Things.find {},
+    handle = Things.find {},
       sort: searchedFor: -1
       limit: 10
+
+    things = []
+    handle.forEach (thing) ->
+      thing.noVote = true
+      console.log thing
+      things.push thing
+    things
 
   Template.form.thing = ->
     Session.get("thing") or ''
@@ -142,14 +175,6 @@ if Meteor.isClient
     id = Session.get "propertyId"
     Properties.findOne(id)?.text
 
-  Template.things.things = -> 
-    id = Session.get "propertyId"
-    connections = Connections.find propertyId: id
-    connections = connections.fetch()
-    #console.log id, connections
-    thingIds = _.pluck connections, "thingId"
-    Things.find _id: $in: thingIds
-
   Template.properties.thing = -> Session.get "thing"
 
   Template.properties.thingObject = -> 
@@ -162,20 +187,32 @@ if Meteor.isClient
 
   Template.properties.verb = -> Session.get "verb"
 
-  Template.properties.properties = ->
-    thing = Session.get "thing"
-    verb = Session.get "verb"
+  copyScore = (context, obj) ->
+    if obj
+      obj.score = context.score
+      obj.hot = context.hot
+      obj.best = context.best
+    obj
 
-    thingObject = Things.findOne 
-      text: thing
-      verb: verb
+  Template.properties.property = -> 
+    obj = Properties.findOne @propertyId
+    copyScore this, obj
 
-    if thingObject
-      connections = Connections.find thingId: thingObject._id
-      connections = connections.fetch()
-      propertyIds = _.pluck connections, "propertyId"
-      Properties.find _id: $in: propertyIds,
-        sort: thingsCount: -1
+  Template.properties.connections = ->
+    thingId = Session.get "thingId"
+    if thingId
+      connections = Connections.find thingId: thingId,
+        sort: best: -1
+
+  Template.things.thing = -> 
+    obj = Things.findOne @thingId
+    copyScore this, obj
+
+  Template.things.connections = ->
+    propertyId = Session.get "propertyId"
+    if propertyId
+      connections = Connections.find propertyId: propertyId,
+        sort: best: -1
 
   Template.property.q = ->
     thing = Session.get "thing"
@@ -196,9 +233,39 @@ if Meteor.isClient
   Template.property.gt0 = ->
     @thingsCount > 1
 
+  Template.property.thingsCount = ->
+    @thingsCount - 1
+
   Template.property.rendered = ->
     $(@find('a[title]')).tooltip
       placement: 'right'
+
+  Template.vote.events
+    "click .vote-up": (e) ->
+      thingId = if Session.equals('page', 'thing') then Session.get('thingId') else @_id
+      propertyId = if Session.equals('page', 'property') then Session.get('propertyId') else @_id
+
+      console.log thingId, propertyId
+
+      con = Connections.findOne 
+        thingId: thingId
+        propertyId: propertyId
+      
+      console.log con
+
+      Meteor.call 'voteUp', con.type, con._id
+      #Meteor.call 'voteUp', 'thing', thingId
+
+    "click .vote-down": (e) ->
+      thingId = if Session.equals('page', 'thing') then Session.get('thingId') else @_id
+      propertyId = if Session.equals('page', 'property') then Session.get('propertyId') else @_id
+
+      con = Connections.findOne 
+        thingId: thingId
+        propertyId: propertyId
+
+      Meteor.call 'voteDown', con.type, con._id
+      #Meteor.call 'voteDown', 'thing', thingId
 
   Template.body.events
     'click a[href^="/"]': (e) ->
@@ -211,9 +278,10 @@ if Meteor.isClient
 if Meteor.isServer
   Meteor.methods
     reset: ->
-      Things.remove({})
-      Connections.remove({})
-      Properties.remove({})
+      Votes.remove({})
+      #Things.remove({})
+      #Connections.remove({})
+      #Properties.remove({})
 
     getThingId: (thing, verb) ->
       thingObject = Things.findOne
@@ -276,6 +344,9 @@ if Meteor.isServer
           upVotes: 0
           downVotes: 0
           voters: []
+          score: 0
+          hot: 0
+          best: 0
 
       return thingId
 
@@ -297,9 +368,6 @@ if Meteor.isServer
 
 assignImage = (q, collection, entityId) ->
 
-  # uhm, well, you are not supposed to see this..
-  accKey = '7QEr713Vy7abf/09YiXeUDRvGkYbtOrWMWK5qIulguM'
-
   #rootUri = 'https://api.datamarket.azure.com/Bing/Search/v1/Composite'
   rootUri = 'https://api.datamarket.azure.com/Bing/Search/Image'
 
@@ -313,7 +381,7 @@ assignImage = (q, collection, entityId) ->
   market = "'en-us'"
 
   # Encode the credentials and create the stream context.
-  auth = new Buffer(accKey+":"+accKey).toString 'base64'
+  auth = new Buffer(ACC_KEY+":"+ACC_KEY).toString 'base64'
 
   res = Meteor.http.get rootUri,
     headers:

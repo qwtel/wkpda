@@ -18,6 +18,10 @@ h1, .form-inline {
   margin-bottom: 15px;
 }
 
+.percentage {
+  color: #57c229;
+}
+
 .media {
   margin: 10px;
   //width: 28%;
