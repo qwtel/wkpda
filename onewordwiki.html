@@ -108,13 +108,13 @@
 
 <template name="vote">
   <div class="btn-group btn-group-vertical">
-    <a class="vote-up btn">
+    <a class="vote-up btn {{hasVoted "up"}}">
       <i class="icon-arrow-up"/>
     </a>
     <span class="btn disabled">
       {{score}} 
     </span>
-    <a class="vote-down btn">
+    <a class="vote-down btn {{hasVoted "down"}}">
       <i class="icon-arrow-down"/>
     </a>
   </div>

@@ -9,6 +9,7 @@ Meteor.methods
 
 voteFor = (type, id, userId, upOrDown) ->
   data = 
+    type: "vote"
     userId: userId
     entity: id
     entityType: type

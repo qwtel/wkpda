@@ -46,9 +46,9 @@ if Meteor.isServer
       ,
         multi: true
 
-    migrate Things, 'thing'
-    migrate Properties, 'property'
-    migrate Connections, 'connection'
+    #migrate Things, 'thing'
+    #migrate Properties, 'property'
+    #migrate Connections, 'connection'
 
     Meteor.publish "popular", ->
       Things.find {},
@@ -62,9 +62,13 @@ if Meteor.isServer
       connections = connectionsQ.fetch()
 
       thingIds = _.pluck connections, "thingId"
+
       thingsQ = Things.find _id: $in: thingIds
 
-      [propertyQ, thingsQ, connectionsQ]
+      connectionIds = _.pluck connections, "_id"
+      votesQ = Votes.find entity: $in: connectionIds
+
+      [propertyQ, thingsQ, connectionsQ, votesQ]
 
     Meteor.publish "thing", (thingId) ->
       thingQ = Things.find thingId
@@ -81,9 +85,10 @@ if Meteor.isServer
         propertiesQ = Properties.find _id: $in: propIds
         properties = propertiesQ.fetch()
 
-        #console.log _.pluck properties, "text"
+        connectionIds = _.pluck connections, "_id"
+        votesQ = Votes.find entity: $in: connectionIds
 
-        [thingQ, connectionsQ, propertiesQ]
+        [thingQ, connectionsQ, propertiesQ, votesQ]
 
 if Meteor.isClient
   Handlebars.registerHelper "equals", (name, value) ->
@@ -125,7 +130,6 @@ if Meteor.isClient
     things = []
     handle.forEach (thing) ->
       thing.noVote = true
-      console.log thing
       things.push thing
     things
 
@@ -148,15 +152,11 @@ if Meteor.isClient
           else
             q = thing + " " + verb + " "
 
-
             #searchProviders = [
             #  "http://suggestqueries.google.com/complete/search?client=firefox&q=",
             #  "http://ff.search.yahoo.com/gossip?output=fxjson&command=",
             #  "http://api.bing.com/osjson.aspx?query="
             #]
-
-            #choice = Random.choice searchProviders
-            #url = choice + q
 
             url = "http://suggestqueries.google.com/complete/search?client=firefox&q=" + q
 
@@ -168,7 +168,6 @@ if Meteor.isClient
                   if not err
                     Router.navigate "/thing/"+res, true
                     Meteor.flush()
-
                     Meteor.call "assignImages", res
 
   Template.things.property = -> 
@@ -192,9 +191,13 @@ if Meteor.isClient
       obj.score = context.score
       obj.hot = context.hot
       obj.best = context.best
+
+      v = Votes.findOne entity: context._id
+      if v then obj.upOrDown = v.upOrDown
     obj
 
   Template.properties.property = -> 
+    console.log this
     obj = Properties.findOne @propertyId
     copyScore this, obj
 
@@ -202,7 +205,9 @@ if Meteor.isClient
     thingId = Session.get "thingId"
     if thingId
       connections = Connections.find thingId: thingId,
-        sort: best: -1
+        sort: 
+          best: -1
+          score: -1
 
   Template.things.thing = -> 
     obj = Things.findOne @thingId
@@ -212,7 +217,9 @@ if Meteor.isClient
     propertyId = Session.get "propertyId"
     if propertyId
       connections = Connections.find propertyId: propertyId,
-        sort: best: -1
+        sort: 
+          best: -1
+          score: -1
 
   Template.property.q = ->
     thing = Session.get "thing"
@@ -236,23 +243,26 @@ if Meteor.isClient
   Template.property.thingsCount = ->
     @thingsCount - 1
 
-  Template.property.rendered = ->
-    $(@find('a[title]')).tooltip
-      placement: 'right'
+  #Template.property.rendered = ->
+  #  $(@find('a[title]')).tooltip
+  #    placement: 'right'
+
+  Template.vote.hasVoted = (dir) ->
+    if dir is "up" and @upOrDown is 1
+      return "active"
+    else if dir is "down" and @upOrDown is -1
+      return "active"
+    ''
 
   Template.vote.events
     "click .vote-up": (e) ->
       thingId = if Session.equals('page', 'thing') then Session.get('thingId') else @_id
       propertyId = if Session.equals('page', 'property') then Session.get('propertyId') else @_id
 
-      console.log thingId, propertyId
-
       con = Connections.findOne 
         thingId: thingId
         propertyId: propertyId
       
-      console.log con
-
       Meteor.call 'voteUp', con.type, con._id
       #Meteor.call 'voteUp', 'thing', thingId
 
@@ -317,6 +327,7 @@ if Meteor.isServer
 
       date = new Date().getTime()
       thingId = Things.insert 
+        type: "thing"
         text: thing
         verb: verb
         date: date
@@ -333,17 +344,18 @@ if Meteor.isServer
 
         else
           propertyId = Properties.insert 
+            type: "property"
             text: p
             date: date
             thingsCount: 1
 
         Connections.insert
+          type: "connection"
           thingId: thingId
           propertyId: propertyId
           date: date
           upVotes: 0
           downVotes: 0
-          voters: []
           score: 0
           hot: 0
           best: 0
@@ -365,6 +377,9 @@ if Meteor.isServer
           if propertyObject and not propertyObject.images and propertyObject.thingsCount > 1
             property = propertyObject.text
             assignImage property, Properties, propertyId
+
+    bing: ->
+      assignImage "sushi", Things, "T5J9TRqRt7LpxWcwp"
 
 assignImage = (q, collection, entityId) ->
 
