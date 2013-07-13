@@ -1,6 +1,7 @@
 /* CSS declarations go here */
 body {
   padding: 15px;
+  font-family: serif;
 }
 
 a[title] {
